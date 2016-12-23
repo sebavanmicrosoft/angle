@@ -2094,6 +2094,12 @@ void Context::initCaps(GLuint clientVersion)
 
 void Context::syncRendererState()
 {
+#ifdef ANGLE_ENABLE_WINDOWS_HOLOGRAPHIC
+    // Sync the holographic information in the program befor draw calls.
+    gl::Program * program = mState.getProgram();
+    rx::HolographicSwapChain11::bindHolographicUniforms(this, program);
+#endif
+
     const State::DirtyBits &dirtyBits = mState.getDirtyBits();
     mRenderer->syncState(mState, dirtyBits);
     mState.clearDirtyBits();

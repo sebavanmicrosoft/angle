@@ -11,6 +11,8 @@
 
 #include "common/angleutils.h"
 #include "common/platform.h"
+#include "libANGLE/context.h"
+#include "libANGLE/program.h"
 
 #ifdef ANGLE_ENABLE_WINDOWS_HOLOGRAPHIC
 
@@ -66,6 +68,10 @@ class HolographicSwapChain11 : public SwapChainD3D
     virtual ID3D11ShaderResourceView *  getDepthStencilShaderResource();
 
     static DirectX::XMFLOAT4X4 const&   getMidViewMatrix();
+    static DirectX::XMFLOAT4X4 const&   getMidViewMatrixInverse();
+
+    static void                         bindHolographicUniforms(gl::Context * context, gl::Program * program);
+
     static bool const&                  getIsAutomaticStereoRenderingEnabled();
     static bool const&                  getIsAutomaticDepthBasedImageStabilizationEnabled();
     static bool const&                  getIsWaitForVBlankEnabled();
@@ -167,6 +173,11 @@ class HolographicSwapChain11 : public SwapChainD3D
     // orientation within the coordinate system provided by the app.
     static DirectX::XMFLOAT4X4          mMidViewMatrix;
     static DirectX::XMFLOAT4X4          mMidViewMatrixInverse;
+
+    // Holographic transforms information.
+    static DirectX::XMFLOAT4X4          mHolographicViews[2];
+    static DirectX::XMFLOAT4X4          mHolographicProjections[2];
+    static DirectX::XMFLOAT4X4          mHolographicViewProjections[2];
 
     // Tracks whether or not the app has enabled automatic stereo instancing.
     static bool                         mUseAutomaticStereoRendering;

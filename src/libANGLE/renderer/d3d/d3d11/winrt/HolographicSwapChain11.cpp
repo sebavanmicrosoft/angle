@@ -52,45 +52,48 @@ namespace rx
 
 namespace
 {
-bool NeedsOffscreenTexture(Renderer11 *renderer, NativeWindow nativeWindow, EGLint orientation)
-{
-    // We don't need an offscreen texture if either orientation = INVERT_Y,
-    // or present path fast is enabled and we're not rendering onto an offscreen surface.
-    return orientation != EGL_SURFACE_ORIENTATION_INVERT_Y_ANGLE &&
-           !(renderer->presentPathFastEnabled() && nativeWindow.getNativeWindow());
-}
+    bool NeedsOffscreenTexture(Renderer11 *renderer, NativeWindow nativeWindow, EGLint orientation)
+    {
+        // We don't need an offscreen texture if either orientation = INVERT_Y,
+        // or present path fast is enabled and we're not rendering onto an offscreen surface.
+        return orientation != EGL_SURFACE_ORIENTATION_INVERT_Y_ANGLE &&
+            !(renderer->presentPathFastEnabled() && nativeWindow.getNativeWindow());
+    }
 }  // anonymous namespace
 
 
 DirectX::XMFLOAT4X4 HolographicSwapChain11::mMidViewMatrix;
 DirectX::XMFLOAT4X4 HolographicSwapChain11::mMidViewMatrixInverse;
+DirectX::XMFLOAT4X4 HolographicSwapChain11::mHolographicViews[2];
+DirectX::XMFLOAT4X4 HolographicSwapChain11::mHolographicProjections[2];
+DirectX::XMFLOAT4X4 HolographicSwapChain11::mHolographicViewProjections[2];
 bool HolographicSwapChain11::mUseAutomaticStereoRendering              = true;
 bool HolographicSwapChain11::mUseAutomaticDepthBasedImageStabilization = false;
 bool HolographicSwapChain11::mWaitForVBlank = true;
 
 
 HolographicSwapChain11::HolographicSwapChain11(Renderer11 *renderer,
-                         HolographicNativeWindow* nativeWindow,
-                         HANDLE shareHandle,
-                         ABI::Windows::Graphics::Holographic::IHolographicCamera* pCamera)
+    HolographicNativeWindow* nativeWindow,
+    HANDLE shareHandle,
+    ABI::Windows::Graphics::Holographic::IHolographicCamera* pCamera)
     : SwapChainD3D(*((NativeWindow*)nativeWindow), shareHandle, GL_RGBA, GL_DEPTH_COMPONENT16),
-      mHolographicNativeWindow(nativeWindow),
-      mRenderer(renderer),
-      mHolographicCamera(pCamera),
-      mBackBufferTexture(nullptr),
-      mBackBufferRTView(nullptr),
-      mBackBufferSRView(nullptr),
-      mDepthStencilTexture(nullptr),
-      mDepthStencilDSView(nullptr),
-      mDepthStencilSRView(nullptr),
-      mDepthStencilSRViewMono(nullptr),
-      mResolvedDepthBuffer(nullptr),
-      mCPUResolvedDepthTexture(nullptr),
-      mResolvedDepthView(nullptr),
-      mResolvedDepthBufferMappable(nullptr),
-      mResolvedDepthViewMappable(nullptr),
-      mColorRenderTarget(this, renderer, false),
-      mDepthStencilRenderTarget(this, renderer, true)
+    mHolographicNativeWindow(nativeWindow),
+    mRenderer(renderer),
+    mHolographicCamera(pCamera),
+    mBackBufferTexture(nullptr),
+    mBackBufferRTView(nullptr),
+    mBackBufferSRView(nullptr),
+    mDepthStencilTexture(nullptr),
+    mDepthStencilDSView(nullptr),
+    mDepthStencilSRView(nullptr),
+    mDepthStencilSRViewMono(nullptr),
+    mResolvedDepthBuffer(nullptr),
+    mCPUResolvedDepthTexture(nullptr),
+    mResolvedDepthView(nullptr),
+    mResolvedDepthBufferMappable(nullptr),
+    mResolvedDepthViewMappable(nullptr),
+    mColorRenderTarget(this, renderer, false),
+    mDepthStencilRenderTarget(this, renderer, true)
 {
     mHolographicCamera->get_RenderTargetSize(&mRenderTargetSize);
     mHolographicCamera->get_ViewportScaleFactor(&mViewportScaleFactor);
@@ -126,7 +129,7 @@ void HolographicSwapChain11::release()
     // Release references to the back buffer
     mBackBufferRTView.Reset();
     mBackBufferSRView.Reset();
-    
+
     // Force the back buffer to be released entirely
     mBackBufferTexture.Reset();
 
@@ -281,7 +284,7 @@ EGLint HolographicSwapChain11::resetOffscreenDepthBuffer(int backbufferWidth, in
                 DXGI_FORMAT_R16_UNORM,
                 0,
                 numPixels);
-            
+
             if (SUCCEEDED(result))
             {
                 result = device->CreateUnorderedAccessView(
@@ -300,23 +303,23 @@ EGLint HolographicSwapChain11::resetOffscreenDepthBuffer(int backbufferWidth, in
                 0,
                 0,
                 structureByteStride);
-            
+
             if (SUCCEEDED(result))
             {
                 result = device->CreateBuffer(&depthResolvedDesc, nullptr, &mResolvedDepthBuffer);
             }
-            
+
             CD3D11_UNORDERED_ACCESS_VIEW_DESC depthResolvedUAVDesc(
                 D3D11_UAV_DIMENSION_BUFFER,
                 DXGI_FORMAT_R16_UNORM,
                 0,
                 numPixels);
-            
+
             if (SUCCEEDED(result))
             {
                 result = device->CreateUnorderedAccessView(
-                    mResolvedDepthBuffer, 
-                    &depthResolvedUAVDesc, 
+                    mResolvedDepthBuffer,
+                    &depthResolvedUAVDesc,
                     &mResolvedDepthView);
             }
 
@@ -327,12 +330,12 @@ EGLint HolographicSwapChain11::resetOffscreenDepthBuffer(int backbufferWidth, in
                 D3D11_CPU_ACCESS_READ | D3D11_CPU_ACCESS_WRITE,
                 0,
                 structureByteStride);
-            
+
             if (SUCCEEDED(result))
             {
                 result = device->CreateBuffer(
-                    &depthResolvedCPUDesc, 
-                    nullptr, 
+                    &depthResolvedCPUDesc,
+                    nullptr,
                     &mCPUResolvedDepthTexture);
             }
         }
@@ -373,7 +376,7 @@ void HolographicSwapChain11::ComputeMidViewMatrix(
 
     XMVECTOR rightScale, rightRotationQuat, rightTranslation;
     success = success && XMMatrixDecompose(&rightScale, &rightRotationQuat, &rightTranslation, right);
-    
+
     // Only proceed if the decomposition was successful.
     if (success)
     {
@@ -387,9 +390,9 @@ void HolographicSwapChain11::ComputeMidViewMatrix(
         const XMVECTOR resultRotationQuat = XMQuaternionSlerp(leftRotationQuat, rightRotationQuat, 0.5f);
 
         // Compose the result transform.
-        auto midViewMatrix = 
-            XMMatrixScalingFromVector(resultScale) * 
-            XMMatrixRotationQuaternion(resultRotationQuat) * 
+        auto midViewMatrix =
+            XMMatrixScalingFromVector(resultScale) *
+            XMMatrixRotationQuaternion(resultRotationQuat) *
             XMMatrixTranslationFromVector(resultTranslation);
 
         // Store the result transform.
@@ -533,7 +536,7 @@ EGLint HolographicSwapChain11::updateHolographicRenderingParameters(
     // Update holographic view/projection matrices.
     if (SUCCEEDED(result))
     {
-        ComPtr<ABI::Windows::Perception::Spatial::ISpatialCoordinateSystem> spCoordinateSystem = 
+        ComPtr<ABI::Windows::Perception::Spatial::ISpatialCoordinateSystem> spCoordinateSystem =
             mHolographicNativeWindow->GetCoordinateSystem();
 
         if (spCoordinateSystem != nullptr)
@@ -564,14 +567,13 @@ EGLint HolographicSwapChain11::updateHolographicRenderingParameters(
                 // Update the view matrices. Holographic cameras (such as Microsoft HoloLens) are
                 // constantly moving relative to the world. The view matrices need to be updated
                 // every frame.
-                DirectX::XMFLOAT4X4 viewProj[2];
                 DirectX::XMStoreFloat4x4(
-                    &viewProj[0],
-                    DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Left)) * 
+                    &mHolographicViewProjections[0],
+                    DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Left)) *
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&projectionTransform.Left))
                 );
                 DirectX::XMStoreFloat4x4(
-                    &viewProj[1],
+                    &mHolographicViewProjections[1],
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Right)) *
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&projectionTransform.Right))
                 );
@@ -579,13 +581,13 @@ EGLint HolographicSwapChain11::updateHolographicRenderingParameters(
                 // get view matrix
                 const auto leftViewMatrix = DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Left));
                 const auto rightViewMatrix = DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Right));
-                
+
                 // interpolate view matrix
                 if (mHolographicCameraId == 0)
                 {
                     ComputeMidViewMatrix(leftViewMatrix, rightViewMatrix);
                 }
-                
+
                 // TODO: The display was being mirrored, so for now we hack these values to 
                 //       negative as far as the app is concerned.
                 viewTransform.Left.M11 = -viewTransform.Left.M11;
@@ -599,16 +601,15 @@ EGLint HolographicSwapChain11::updateHolographicRenderingParameters(
                 mMidViewMatrix._13 = -mMidViewMatrix._13;
 
                 // store view matrix
-                DirectX::XMFLOAT4X4 view[2];
                 DirectX::XMStoreFloat4x4(
-                    &view[0],
+                    &mHolographicViews[0],
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Left))
                 );
                 DirectX::XMStoreFloat4x4(
-                    &view[1],
+                    &mHolographicViews[1],
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&viewTransform.Right))
                 );
-                
+
                 // invert view matrix
                 XMVECTOR determinant;
                 auto leftViewInverse = XMMatrixInverse(&determinant, leftViewMatrix);
@@ -621,13 +622,12 @@ EGLint HolographicSwapChain11::updateHolographicRenderingParameters(
                 }
 
                 // get projection
-                DirectX::XMFLOAT4X4 proj[2];
                 DirectX::XMStoreFloat4x4(
-                    &proj[0],
+                    &mHolographicProjections[0],
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&projectionTransform.Left))
                 );
                 DirectX::XMStoreFloat4x4(
-                    &proj[1],
+                    &mHolographicProjections[1],
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&projectionTransform.Right))
                 );
                 DirectX::XMStoreFloat4x4(
@@ -635,90 +635,15 @@ EGLint HolographicSwapChain11::updateHolographicRenderingParameters(
                     DirectX::XMLoadFloat4x4(reinterpret_cast<DirectX::XMFLOAT4X4*>(&projectionTransform.Left))
                 );
 
-                // get the current program
-                gl::Context *glContext = gl::GetValidGlobalContext();
-                gl::Program *program = glContext->getState().getProgram();
-
-                if (program)
+                // attach the mid-view matrix inverse, when enabled
+                if (mUseAutomaticStereoRendering)
                 {
-                    // attach holographic view matrix, if applicable
-                    int viewMatrixIndex = program->getUniformLocation("uHolographicViewMatrix");
-                    if (viewMatrixIndex != -1)
+                    DirectX::XMVECTOR determinant;
+                    auto midViewInverse = XMMatrixInverse(&determinant, XMLoadFloat4x4(&mMidViewMatrix));
+
+                    if (!XMVector4NearEqual(determinant, XMVectorZero(), XMVectorSplatEpsilon()))
                     {
-                        // detach any existing buffers
-                        glContext->bindGenericUniformBuffer(0);
-
-                        // attach holographic view matrix
-                        if (!(gl::ValidateUniformMatrix(glContext, GL_FLOAT_MAT4, viewMatrixIndex, 2, GL_FALSE)))
-                        {
-                            // Something unexpected has occured. We're probably in a bad state and should not continue.
-                            result = E_FAIL;
-                        }
-                        else
-                        {
-                            program->setUniformMatrix4fv(viewMatrixIndex, 2, GL_FALSE, (GLfloat*) view);
-                        }
-                    }
-
-                    // attach holographic projection matrix, if applicable
-                    int projectionMatrixIndex = program->getUniformLocation("uHolographicProjectionMatrix");
-                    if (projectionMatrixIndex != -1)
-                    {
-                        // detach any existing buffers
-                        glContext->bindGenericUniformBuffer(0);
-
-                        // attach holographic projection matrix
-                        if (!(gl::ValidateUniformMatrix(glContext, GL_FLOAT_MAT4, projectionMatrixIndex, 2, GL_FALSE)))
-                        {
-                            // Something unexpected has occured. We're probably in a bad state and should not continue.
-                            result = E_FAIL;
-                        }
-                        else
-                        {
-                            program->setUniformMatrix4fv(projectionMatrixIndex, 2, GL_FALSE, (GLfloat*) proj);
-                        }
-                    }
-
-                    // attach holographic view/projection matrix, if applicable
-                    GLint viewProjectionMatrixUniformLocation = program->getUniformLocation("uHolographicViewProjectionMatrix");
-                    if (viewProjectionMatrixUniformLocation != -1)
-                    {
-                        // detach any existing buffers
-                        glContext->bindGenericUniformBuffer(0);
-
-                        // attach holographic view/projection matrix
-                        if (!(gl::ValidateUniformMatrix(glContext, GL_FLOAT_MAT4, viewProjectionMatrixUniformLocation, 2, GL_FALSE)))
-                        {
-                            // Something unexpected has occured. We're probably in a bad state and should not continue.
-                            result = E_FAIL;
-                        }
-                        program->setUniformMatrix4fv(viewProjectionMatrixUniformLocation, 2, GL_FALSE, (GLfloat*) viewProj);
-                    }
-
-                    // attach the mid-view matrix inverse, when enabled
-                    if (mUseAutomaticStereoRendering)
-                    {
-                        DirectX::XMVECTOR determinant;
-                        auto midViewInverse = XMMatrixInverse(&determinant, XMLoadFloat4x4(&mMidViewMatrix));
-
-                        if (!XMVector4NearEqual(determinant, XMVectorZero(), XMVectorSplatEpsilon()))
-                        {
-                            XMStoreFloat4x4(&mMidViewMatrixInverse, midViewInverse);
-                        }
-
-                        GLint undoViewProjUniformLocation = program->getUniformLocation("uUndoMidViewMatrix");
-                        if (undoViewProjUniformLocation != -1)
-                        {
-                            // detach any existing buffers
-                            glContext->bindGenericUniformBuffer(0);
-
-                            if (!(gl::ValidateUniformMatrix(glContext, GL_FLOAT_MAT4, undoViewProjUniformLocation, 1, GL_FALSE)))
-                            {
-                                // Something unexpected has occured. We're probably in a bad state and should not continue.
-                                result = E_FAIL;
-                            }
-                            program->setUniformMatrix4fv(undoViewProjUniformLocation, 1, GL_FALSE, (GLfloat*) &mMidViewMatrixInverse);
-                        }
+                        XMStoreFloat4x4(&mMidViewMatrixInverse, midViewInverse);
                     }
                 }
             }
@@ -784,7 +709,7 @@ EGLint HolographicSwapChain11::reset(int backbufferWidth, int backbufferHeight, 
             );
         }
     }
-    
+
     HRESULT hr = S_OK;
 
     ComPtr<ABI::Windows::Graphics::Holographic::IHolographicCameraRenderingParameters> spParameters;
@@ -797,7 +722,7 @@ EGLint HolographicSwapChain11::reset(int backbufferWidth, int backbufferHeight, 
     if (SUCCEEDED(hr))
     {
         EGLint result = updateHolographicRenderingParameters(spParameters);
-            
+
         if (result != EGL_SUCCESS)
         {
             return result;
@@ -861,15 +786,15 @@ void HolographicSwapChain11::SetStabilizationPlane(IHolographicFrame* pFrame)
     float distanceToPointInMeters = 2.0f - mNearPlaneDistance;
     assert(mDepthBufferPlaneFinder != nullptr);
     const bool estimationSuccess = mDepthBufferPlaneFinder->TryFindPlaneNormalAndDistance(
-        this, 
-        planeNormalInCameraSpace, 
+        this,
+        planeNormalInCameraSpace,
         distanceToPointInMeters);
 
-//#define ENABLE_DEBUG_OUTPUT
+    //#define ENABLE_DEBUG_OUTPUT
 #ifdef ENABLE_DEBUG_OUTPUT
     OutputDebugStringA((
-        "Distance from near plane to point: " + 
-        std::to_string(distanceToPointInMeters) + 
+        "Distance from near plane to point: " +
+        std::to_string(distanceToPointInMeters) +
         "\n").c_str());
 #endif
 
@@ -886,10 +811,10 @@ void HolographicSwapChain11::SetStabilizationPlane(IHolographicFrame* pFrame)
         planeNormalInCameraSpace = normalize(planeNormalInCameraSpace);
         float4 normalInCameraSpace = {
             planeNormalInCameraSpace.x,
-           -planeNormalInCameraSpace.y,
+            -planeNormalInCameraSpace.y,
             planeNormalInCameraSpace.z,
             dot(pointInViewSpace, planeNormalInCameraSpace)
-            };
+        };
         float4 planeNormalInWorldSpace4 = transform(normalInCameraSpace, normalRotationInverse);
         float3 planeNormalInWorldSpace = {
             planeNormalInWorldSpace4.x,
@@ -897,7 +822,7 @@ void HolographicSwapChain11::SetStabilizationPlane(IHolographicFrame* pFrame)
             planeNormalInWorldSpace4.z
         };
 
-        ComPtr<ABI::Windows::Perception::Spatial::ISpatialCoordinateSystem> spCoordinateSystem = 
+        ComPtr<ABI::Windows::Perception::Spatial::ISpatialCoordinateSystem> spCoordinateSystem =
             mHolographicNativeWindow->GetCoordinateSystem();
 
         // Set the focus point for the current camera.
@@ -931,12 +856,12 @@ EGLint HolographicSwapChain11::present(IHolographicFrame* pFrame)
     // starting work on a new frame. This allows for better results from
     // holographic frame predictions.
     HolographicFramePresentResult presentResult;
-        result = pFrame->PresentUsingCurrentPredictionWithBehavior(
-            mWaitForVBlank ?
-                HolographicFramePresentWaitBehavior_WaitForFrameToFinish :
-                HolographicFramePresentWaitBehavior_DoNotWaitForFrameToFinish,
-            &presentResult);
-    
+    result = pFrame->PresentUsingCurrentPredictionWithBehavior(
+        mWaitForVBlank ?
+        HolographicFramePresentWaitBehavior_WaitForFrameToFinish :
+        HolographicFramePresentWaitBehavior_DoNotWaitForFrameToFinish,
+        &presentResult);
+
     if (SUCCEEDED(result))
     {
         // Some swapping mechanisms such as DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL unbind the current render
@@ -1022,6 +947,11 @@ DirectX::XMFLOAT4X4 const& HolographicSwapChain11::getMidViewMatrix()
     return mMidViewMatrix;
 }
 
+DirectX::XMFLOAT4X4 const& HolographicSwapChain11::getMidViewMatrixInverse()
+{
+    return mMidViewMatrixInverse;
+}
+
 bool const& HolographicSwapChain11::getIsAutomaticStereoRenderingEnabled()
 {
     return mUseAutomaticStereoRendering;
@@ -1055,6 +985,87 @@ void HolographicSwapChain11::setIsWaitForVBlankEnabled(bool isEnabled)
 void HolographicSwapChain11::recreate()
 {
     // possibly should use this method instead of reset
+}
+
+void HolographicSwapChain11::bindHolographicUniforms(gl::Context * context, gl::Program * program)
+{
+    HRESULT result = S_OK;
+    if (program)
+    {
+        // attach holographic view matrix, if applicable
+        int viewMatrixIndex = program->getUniformLocation("uHolographicViewMatrix");
+        if (viewMatrixIndex != -1)
+        {
+            // detach any existing buffers
+            context->bindGenericUniformBuffer(0);
+
+            // attach holographic view matrix
+            if (!(gl::ValidateUniformMatrix(context, GL_FLOAT_MAT4, viewMatrixIndex, 2, GL_FALSE)))
+            {
+                // Something unexpected has occured. We're probably in a bad state and should not continue.
+                result = E_FAIL;
+            }
+            else
+            {
+                program->setUniformMatrix4fv(viewMatrixIndex, 2, GL_FALSE, (GLfloat*)mHolographicViews);
+            }
+        }
+
+        // attach holographic projection matrix, if applicable
+        int projectionMatrixIndex = program->getUniformLocation("uHolographicProjectionMatrix");
+        if (projectionMatrixIndex != -1)
+        {
+            // detach any existing buffers
+            context->bindGenericUniformBuffer(0);
+
+            // attach holographic projection matrix
+            if (!(gl::ValidateUniformMatrix(context, GL_FLOAT_MAT4, projectionMatrixIndex, 2, GL_FALSE)))
+            {
+                // Something unexpected has occured. We're probably in a bad state and should not continue.
+                result = E_FAIL;
+            }
+            else
+            {
+                program->setUniformMatrix4fv(projectionMatrixIndex, 2, GL_FALSE, (GLfloat*)mHolographicProjections);
+            }
+        }
+
+        // attach holographic view/projection matrix, if applicable
+        GLint viewProjectionMatrixUniformLocation = program->getUniformLocation("uHolographicViewProjectionMatrix");
+        if (viewProjectionMatrixUniformLocation != -1)
+        {
+            // detach any existing buffers
+            context->bindGenericUniformBuffer(0);
+
+            // attach holographic view/projection matrix
+            if (!(gl::ValidateUniformMatrix(context, GL_FLOAT_MAT4, viewProjectionMatrixUniformLocation, 2, GL_FALSE)))
+            {
+                // Something unexpected has occured. We're probably in a bad state and should not continue.
+                result = E_FAIL;
+            }
+
+            program->setUniformMatrix4fv(viewProjectionMatrixUniformLocation, 2, GL_FALSE, (GLfloat*)mHolographicViewProjections);
+        }
+
+        // attach the mid-view matrix inverse, when enabled
+        if (rx::HolographicSwapChain11::getIsAutomaticStereoRenderingEnabled())
+        {
+            GLint undoViewProjUniformLocation = program->getUniformLocation("uUndoMidViewMatrix");
+            if (undoViewProjUniformLocation != -1)
+            {
+                // detach any existing buffers
+                context->bindGenericUniformBuffer(0);
+
+                if (!(gl::ValidateUniformMatrix(context, GL_FLOAT_MAT4, undoViewProjUniformLocation, 1, GL_FALSE)))
+                {
+                    // Something unexpected has occured. We're probably in a bad state and should not continue.
+                    result = E_FAIL;
+                }
+
+                program->setUniformMatrix4fv(undoViewProjUniformLocation, 1, GL_FALSE, (GLfloat*)&mMidViewMatrixInverse);
+            }
+        }
+    }
 }
 
 }
